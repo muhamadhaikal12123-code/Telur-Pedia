@@ -1,0 +1,46 @@
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+error_log
+
+# Backup files
+*.bak
+*.bak2
+
+# Docker
+docker-compose.override.yml
+docker-compose.yml.local
+
+# Sensitive data
+.env
+.env.local
+.env.*.local
+
+# Vendor (PHP dependencies)
+vendor/
+
+# Node modules
+node_modules/
+
+# Storage (Laravel)
+storage/
+bootstrap/cache/
+
+# Composer
+composer.phar
+
+# Upload sementara
+tmp/
+temp/
+
+# Data JSON (comment jika ingin ikut di-track)
+data.json

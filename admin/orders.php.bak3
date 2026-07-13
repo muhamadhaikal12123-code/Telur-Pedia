@@ -1,0 +1,208 @@
+<?php
+session_start();
+if (!isset($_SESSION['admin_logged_in'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$dataFile = __DIR__ . '/../data.json';
+$data = json_decode(file_get_contents($dataFile), true);
+$orders = $data['orders'] ?? [];
+$msg = $_GET['msg'] ?? '';
+
+if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['status'])) {
+    $id = intval($_GET['id']);
+    $status = $_GET['status'];
+    foreach ($data['orders'] as &$o) {
+        if ($o['id'] == $id) { $o['status'] = $status; break; }
+    }
+    file_put_contents($dataFile, json_encode($data, JSON_PRETTY_PRINT));
+    header('Location: orders.php?msg=updated');
+    exit;
+}
+
+if (isset($_GET['delete'])) {
+    $id = intval($_GET['delete']);
+    $data['orders'] = array_filter($data['orders'], fn($o) => $o['id'] != $id);
+    $data['orders'] = array_values($data['orders']);
+    file_put_contents($dataFile, json_encode($data, JSON_PRETTY_PRINT));
+    header('Location: orders.php?msg=deleted');
+    exit;
+}
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orders - Telur Pedia Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #f1f5f9; }
+        .sidebar {
+            width: 260px;
+            background: #0f172a;
+            min-height: 100vh;
+            padding: 20px 16px;
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            overflow-y: auto;
+            transition: transform 0.3s;
+            z-index: 100;
+        }
+        .sidebar .logo { color: white; font-size: 20px; font-weight: 800; padding: 8px 12px 20px; border-bottom: 1px solid #1e293b; margin-bottom: 16px; }
+        .sidebar .logo span { color: #f59e0b; }
+        .sidebar .menu-label { color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 12px 12px 6px; }
+        .sidebar a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; color: #94a3b8; text-decoration: none; border-radius: 10px; transition: 0.3s; font-size: 14px; font-weight: 500; }
+        .sidebar a:hover { background: #1e293b; color: white; }
+        .sidebar a.active { background: #f59e0b; color: white; }
+        .sidebar a i { width: 20px; text-align: center; }
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .table-wrap { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow-x: auto; }
+        .table-wrap table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .table-wrap th { text-align: left; padding: 12px 12px; color: #64748b; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
+        .table-wrap td { padding: 12px 12px; border-bottom: 1px solid #e2e8f0; }
+        .status-badge { padding: 4px 12px; border-radius: 50px; font-size: 12px; font-weight: 600; }
+        .status-new { background: #dbeafe; color: #1d4ed8; }
+        .status-process { background: #fef3c7; color: #b45309; }
+        .status-done { background: #d1fae5; color: #065f46; }
+        .btn-logout { color: #94a3b8 !important; margin-top: 20px; border-top: 1px solid #1e293b; padding-top: 16px; }
+        .btn-logout:hover { color: #ef4444 !important; }
+        .hamburger { display: none; background: none; border: none; color: #0f172a; font-size: 24px; cursor: pointer; }
+        .btn-status { padding: 4px 8px; border-radius: 6px; border: none; font-size: 11px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn-status-new { background: #dbeafe; color: #1d4ed8; }
+        .btn-status-process { background: #fef3c7; color: #b45309; }
+        .btn-status-done { background: #d1fae5; color: #065f46; }
+        .alert { padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; }
+        .alert-success { background: #d1fae5; color: #065f46; }
+        .alert-danger { background: #fee2e2; color: #991b1b; }
+        .btn-export { background: #22c55e; color: white; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; text-decoration: none; display: inline-block; }
+        .btn-export:hover { background: #16a34a; transform: translateY(-2px); }
+        .btn-delete { background: #fee2e2; color: #dc2626; padding: 4px 10px; border-radius: 6px; border: none; font-size: 11px; cursor: pointer; display: inline-block; text-decoration: none; }
+        .btn-delete:hover { background: #fecaca; }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-left: 0; padding: 16px; }
+            .hamburger { display: block !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar" id="sidebar">
+    <div class="logo">🥚 Telur<span>Pedia</span></div>
+    <div class="menu-label">Menu</div>
+    <a href="dashboard.php"><i class="fas fa-th-large"></i> Dashboard</a>
+    <a href="products.php"><i class="fas fa-box"></i> Products</a>
+    <a href="orders.php" class="active"><i class="fas fa-shopping-bag"></i> Orders</a>
+    <a href="users.php"><i class="fas fa-users"></i> Users</a>
+    <div class="menu-label" style="margin-top:16px;">Settings</div>
+    <a href="settings.php"><i class="fas fa-cog"></i> Settings</a>
+    <a href="logout.php" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <i class="fas fa-bars"></i>
+            </button>
+            <h1 class="text-2xl font-bold text-gray-800">Orders</h1>
+            <p class="text-sm text-gray-500">Manage customer orders</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="export.php" class="btn-export"><i class="fas fa-file-excel"></i> Export Excel</a>
+        </div>
+    </div>
+
+    <?php if ($msg == 'updated'): ?>
+        <div class="alert alert-success"><i class="fas fa-check-circle"></i> Status berhasil diupdate!</div>
+    <?php elseif ($msg == 'deleted'): ?>
+        <div class="alert alert-danger"><i class="fas fa-trash"></i> Order berhasil dihapus!</div>
+    <?php endif; ?>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Total</th>
+                    <th>Payment</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($orders)): ?>
+                <tr><td colspan="10" class="text-center text-gray-500 py-4">Belum ada pesanan</td></tr>
+                <?php else: ?>
+                <?php foreach ($orders as $o): ?>
+                <tr>
+                    <td>#<?= $o['id'] ?></td>
+                    <td><strong><?= $o['customer'] ?></strong></td>
+                    <td><?= $o['phone'] ?></td>
+                    <td><?= $o['product'] ?></td>
+                    <td><?= $o['qty'] ?> kg</td>
+                    <td>Rp <?= number_format($o['total'], 0, ',', '.') ?></td>
+                    <td><?= $o['payment'] ?? 'Transfer' ?></td>
+                    <td>
+                        <span class="status-badge status-<?= strtolower($o['status']) ?>">
+                            <?= $o['status'] ?>
+                        </span>
+                    </td>
+                    <td><?= $o['date'] ?></td>
+<td><?= $o['latitude'] ?? '-' ?></td>
+<td><?= $o['longitude'] ?? '-' ?></td>
+                    <td>
+                        <div class="flex flex-wrap gap-1">
+                            <?php if ($o['status'] == 'New'): ?>
+                                <a href="orders.php?action=update&id=<?= $o['id'] ?>&status=Process" class="btn-status btn-status-process"><i class="fas fa-play"></i></a>
+                            <?php elseif ($o['status'] == 'Process'): ?>
+                                <a href="orders.php?action=update&id=<?= $o['id'] ?>&status=Done" class="btn-status btn-status-done"><i class="fas fa-check"></i></a>
+                            <?php else: ?>
+                                <span class="text-gray-400 text-xs">✓</span>
+                            <?php endif; ?>
+                            <a href="orders.php?delete=<?= $o['id'] ?>" class="btn-delete" onclick="return confirm('Yakin hapus order #<?= $o['id'] ?>?')">
+                                <i class="fas fa-trash"></
+<?php if (!empty($o['latitude']) && !empty($o['longitude'])): ?>
+    <a href="https://www.google.com/maps?q=<?= $o['latitude'] ?>,<?= $o['longitude'] ?>" target="_blank" class="btn-maps">
+        <i class="fas fa-map-pin"></i>
+    </a>
+<?php endif; ?>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('click', function(e) {
+        const sidebar = document.getElementById('sidebar');
+        const hamburger = document.querySelector('.hamburger');
+        if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+            if (!sidebar.contains(e.target) && !hamburger.contains(e.target)) {
+                sidebar.classList.remove('open');
+            }
+        }
+    });
+</script>
+</body>
+</html>
